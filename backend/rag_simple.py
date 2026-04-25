@@ -23,7 +23,7 @@ def cosine_sim(a, b):
 
 
 def load_docs():
-    file_path = BASE_DIR / "data" / "medical_data.txt"
+    file_path = BASE_DIR.parent / "data" / "medical_data.txt"
     with open(file_path, "r") as f:
         return f.read().split("\n\n")
 
