@@ -15,8 +15,23 @@ def get_embedding(text):
     }
 
     response = requests.post(url, headers=headers, json={"inputs": text})
-    return response.json()[0]
 
+    # 🔥 DEBUG PRINT
+    print("HF STATUS:", response.status_code)
+    print("HF RESPONSE:", response.text[:200])
+
+    try:
+        data = response.json()
+    except:
+        # fallback if not JSON
+        return [0.0] * 384
+
+    # handle HF error
+    if isinstance(data, dict) and "error" in data:
+        print("HF ERROR:", data["error"])
+        return [0.0] * 384
+
+    return data[0]
 
 def cosine_sim(a, b):
     return sum(x * y for x, y in zip(a, b))
