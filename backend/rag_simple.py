@@ -1,7 +1,10 @@
 import os
 import requests
+from pathlib import Path
 
 HF_API_KEY = os.getenv("HF_API_KEY")
+
+BASE_DIR = Path(__file__).resolve().parent
 
 
 def get_embedding(text):
@@ -16,11 +19,12 @@ def get_embedding(text):
 
 
 def cosine_sim(a, b):
-    return sum(x*y for x, y in zip(a, b))
+    return sum(x * y for x, y in zip(a, b))
 
 
 def load_docs():
-    with open("backend/data/medical_data.txt", "r") as f:
+    file_path = BASE_DIR / "data" / "medical_data.txt"
+    with open(file_path, "r") as f:
         return f.read().split("\n\n")
 
 
