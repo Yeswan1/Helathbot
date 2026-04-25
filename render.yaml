@@ -1,8 +1,0 @@
-services:
-  - type: web
-    name: smarthealth
-    env: docker
-    plan: free
-    autoDeploy: true
-    dockerfilePath: ./Dockerfile
-    healthCheckPath: /health
