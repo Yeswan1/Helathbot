@@ -140,16 +140,27 @@ def ask_groq(question):
     response = requests.post(url, json=data, headers=headers)
     return response.json()["choices"][0]["message"]["content"]
 
-
 @app.post("/chat", response_model=ChatResponse)
 def chat(payload: ChatRequest, user: str = Depends(get_current_user)):
-    answer = ask_groq(payload.question)
+
+    chunks = retrieve(payload.question)
+
+    context = "\n".join(chunks)
+
+    prompt = f"""
+Use the context below to answer:
+
+{context}
+
+Question: {payload.question}
+"""
+
+    answer = ask_groq(prompt)
 
     return ChatResponse(
         answer=answer,
-        retrieved_chunks=[]
+        retrieved_chunks=chunks
     )
-
 
 @app.post("/appointments")
 def create_app(payload: AppointmentRequest, user: str = Depends(get_current_user)):
