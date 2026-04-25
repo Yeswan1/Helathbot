@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 from typing import Dict, List, Optional
+from rag_simple import retrieve
 
 import requests
 from dotenv import load_dotenv
