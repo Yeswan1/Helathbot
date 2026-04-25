@@ -1,6 +1,5 @@
 from pathlib import Path
 import os
-import secrets
 from typing import Dict, List, Optional
 
 import requests
@@ -9,12 +8,13 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from jose import jwt, JWTError
+from datetime import datetime, timedelta
+
 try:
     from .db import create_appointment, create_user, init_db, list_appointments, verify_user_password
-    from .rag import RAGEngine
 except ImportError:
     from db import create_appointment, create_user, init_db, list_appointments, verify_user_password
-    from rag import RAGEngine
 
 load_dotenv(override=True)
 
@@ -28,16 +28,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-rag_engine: Optional[RAGEngine] = None
-SESSION_TOKENS: Dict[str, str] = {}
+# ---------------- JWT CONFIG ----------------
 
-MENTAL_WELLNESS_KEYWORDS = {
-    "sad": "I am sorry you are feeling sad. You are not alone.",
-    "anxious": "Try breathing slowly: inhale 4s, hold 4s, exhale 6s.",
-    "depressed": "Please consider talking to a professional.",
-    "stress": "Take breaks and stay hydrated.",
-    "lonely": "Reach out to someone you trust.",
-}
+SECRET_KEY = "mysecretkey123"   # change later
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def get_current_user(authorization: Optional[str] = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    token = authorization.split(" ")[1]
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user = payload.get("sub")
+        return user
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 
 # ---------------- MODELS ----------------
@@ -67,50 +83,19 @@ class RegisterRequest(BaseModel):
     password: str
 
 
-class GoogleAuthRequest(BaseModel):
-    credential: str
-
-
-# ---------------- AUTH ----------------
-
-def get_current_user(authorization: Optional[str] = Header(default=None, alias="Authorization")):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    token = authorization.replace("Bearer ", "")
-    user = SESSION_TOKENS.get(token)
-
-    if not user:
-        raise HTTPException(status_code=401, detail="Session expired")
-
-    return user
-
-
-def create_session_token(name: str):
-    token = secrets.token_urlsafe(24)
-    SESSION_TOKENS[token] = name
-    return token
-
-
-# ---------------- RAG ----------------
-
-def get_rag_engine():
-    global rag_engine
-    if rag_engine is None:
-        rag_engine = RAGEngine()
-        rag_engine.build_or_load_index()
-    return rag_engine
-
-
 # ---------------- STARTUP ----------------
 
 @app.on_event("startup")
 def startup_event():
     init_db()
-    # ❌ Removed heavy RAG loading here
 
 
 # ---------------- ROUTES ----------------
+
+@app.get("/")
+def root():
+    return {"message": "HealthBot API running 🚀"}
+
 
 @app.get("/health")
 def health():
@@ -120,7 +105,7 @@ def health():
 @app.post("/auth/register")
 def register(payload: RegisterRequest):
     user = create_user(payload.username, payload.display_name, payload.password)
-    token = create_session_token(user["display_name"])
+    token = create_access_token({"sub": user["display_name"]})
     return {"token": token}
 
 
@@ -130,31 +115,46 @@ def login(payload: LoginRequest):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    token = create_session_token(user["display_name"])
+    token = create_access_token({"sub": user["display_name"]})
     return {"token": token}
 
 
+# ---------------- CHAT (LIGHT VERSION - NO CRASH) ----------------
+
+def ask_groq(question):
+    url = "https://api.groq.com/openai/v1/chat/completions"
+
+    headers = {
+        "Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "model": "llama-3.1-8b-instant",
+        "messages": [
+            {"role": "user", "content": question}
+        ]
+    }
+
+    response = requests.post(url, json=data, headers=headers)
+    return response.json()["choices"][0]["message"]["content"]
+
+
 @app.post("/chat", response_model=ChatResponse)
-def chat(payload: ChatRequest, _: str = Depends(get_current_user)):
-    question = payload.question.lower()
+def chat(payload: ChatRequest, user: str = Depends(get_current_user)):
+    answer = ask_groq(payload.question)
 
-    # mental support shortcut
-    for key, msg in MENTAL_WELLNESS_KEYWORDS.items():
-        if key in question:
-            return ChatResponse(answer=msg, retrieved_chunks=[])
-
-    engine = get_rag_engine()
-    chunks = engine.retrieve(question)
-    answer = engine.generate_answer(question, chunks)
-
-    return ChatResponse(answer=answer, retrieved_chunks=chunks)
+    return ChatResponse(
+        answer=answer,
+        retrieved_chunks=[]
+    )
 
 
 @app.post("/appointments")
-def create_app(payload: AppointmentRequest, _: str = Depends(get_current_user)):
+def create_app(payload: AppointmentRequest, user: str = Depends(get_current_user)):
     return create_appointment(payload.name, payload.appointment_date)
 
 
 @app.get("/appointments")
-def list_app(_: str = Depends(get_current_user)):
+def list_app(user: str = Depends(get_current_user)):
     return {"appointments": list_appointments()}
