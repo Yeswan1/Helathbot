@@ -3,6 +3,7 @@ import requests
 
 HF_API_KEY = os.getenv("HF_API_KEY")
 
+
 def get_embedding(text):
     url = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
 
@@ -15,4 +16,23 @@ def get_embedding(text):
 
 
 def cosine_sim(a, b):
-    return sum(x*y for x,y in zip(a,b))
+    return sum(x*y for x, y in zip(a, b))
+
+
+def load_docs():
+    with open("backend/data/medical_data.txt", "r") as f:
+        return f.read().split("\n\n")
+
+
+def retrieve(query):
+    docs = load_docs()
+    query_vec = get_embedding(query)
+
+    scores = []
+    for doc in docs:
+        doc_vec = get_embedding(doc)
+        score = cosine_sim(query_vec, doc_vec)
+        scores.append((score, doc))
+
+    scores.sort(reverse=True)
+    return [doc for _, doc in scores[:2]]
