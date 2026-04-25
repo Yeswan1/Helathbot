@@ -1,7 +1,13 @@
 from pathlib import Path
 import os
 from typing import Dict, List, Optional
-from rag_simple import retrieve
+
+try:
+    from .rag_simple import retrieve
+    from .db import create_appointment, create_user, init_db, list_appointments, verify_user_password
+except ImportError:
+    from rag_simple import retrieve
+    from db import create_appointment, create_user, init_db, list_appointments, verify_user_password
 
 import requests
 from dotenv import load_dotenv
@@ -11,11 +17,6 @@ from pydantic import BaseModel, Field
 
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
-
-try:
-    from .db import create_appointment, create_user, init_db, list_appointments, verify_user_password
-except ImportError:
-    from db import create_appointment, create_user, init_db, list_appointments, verify_user_password
 
 load_dotenv(override=True)
 
@@ -31,7 +32,7 @@ app.add_middleware(
 
 # ---------------- JWT CONFIG ----------------
 
-SECRET_KEY = "mysecretkey123"   # change later
+SECRET_KEY = "mysecretkey123"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
@@ -51,8 +52,7 @@ def get_current_user(authorization: Optional[str] = Header(None)):
 
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user = payload.get("sub")
-        return user
+        return payload.get("sub")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
@@ -120,9 +120,9 @@ def login(payload: LoginRequest):
     return {"token": token}
 
 
-# ---------------- CHAT (LIGHT VERSION - NO CRASH) ----------------
+# ---------------- GROQ ----------------
 
-def ask_groq(question):
+def ask_groq(prompt):
     url = "https://api.groq.com/openai/v1/chat/completions"
 
     headers = {
@@ -133,12 +133,15 @@ def ask_groq(question):
     data = {
         "model": "llama-3.1-8b-instant",
         "messages": [
-            {"role": "user", "content": question}
+            {"role": "user", "content": prompt}
         ]
     }
 
     response = requests.post(url, json=data, headers=headers)
     return response.json()["choices"][0]["message"]["content"]
+
+
+# ---------------- CHAT (RAG) ----------------
 
 @app.post("/chat", response_model=ChatResponse)
 def chat(payload: ChatRequest, user: str = Depends(get_current_user)):
@@ -161,6 +164,7 @@ Question: {payload.question}
         answer=answer,
         retrieved_chunks=chunks
     )
+
 
 @app.post("/appointments")
 def create_app(payload: AppointmentRequest, user: str = Depends(get_current_user)):
