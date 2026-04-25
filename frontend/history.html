@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>History | Smart Healthcare Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/frontend/styles.css" />
+</head>
+<body>
+  <main class="shell app-layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <div>
+          <h1>Smart Healthcare Assistant</h1>
+          <p id="welcome">Welcome</p>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <a href="/frontend/chatbot.html">Chatbot</a>
+        <a href="/frontend/appointments.html">Appointments</a>
+        <a class="active" href="/frontend/history.html">History</a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="assistance-box">
+          <small>Review mode</small>
+          <div style="font-weight: 900; margin-bottom: 10px;">Your recent activity</div>
+          <button id="chat-shortcut" class="primary" style="width: 100%;">Open Chatbot</button>
+        </div>
+        <button id="logout-btn" class="secondary" style="width: 100%; margin-top: 12px;">Logout</button>
+      </div>
+    </aside>
+
+    <section class="content">
+      <div class="topbar">
+        <div>
+          <h2>Medical History</h2>
+          <p>Review your clinical interactions and visit records.</p>
+        </div>
+        <div class="topbar-actions">
+          <div class="outline-badge">Audit Trail</div>
+        </div>
+      </div>
+
+      <div class="history-grid">
+        <article class="panel history-panel">
+          <div class="panel-head">
+            <h3 class="panel-title">Chat History (Local)</h3>
+            <span class="status-chip">End-to-End Encrypted</span>
+          </div>
+          <div id="chat-history" class="history-stream"></div>
+        </article>
+
+        <article class="panel history-panel">
+          <div class="panel-head">
+            <h3 class="panel-title">Appointment History</h3>
+          </div>
+          <div id="appointment-history" class="history-stream"></div>
+        </article>
+      </div>
+
+      <div class="history-footer">
+        <div class="footer-pill blue"><span class="dot"></span> Total Records: <span id="total-records">0</span></div>
+        <div class="footer-pill teal"><span class="dot"></span> Storage: Local SQLite</div>
+        <div class="footer-pill green"><span class="dot"></span> Privacy Status: Verified Secure</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/frontend/common.js"></script>
+  <script>
+    requireLogin();
+
+    const userName = getUserName();
+    document.getElementById("welcome").textContent = `Welcome, ${userName}`;
+    document.getElementById("logout-btn").addEventListener("click", logout);
+
+    const chatHistoryEl = document.getElementById("chat-history");
+    const appointmentHistoryEl = document.getElementById("appointment-history");
+    const totalRecordsEl = document.getElementById("total-records");
+    document.getElementById("chat-shortcut").addEventListener("click", () => {
+      window.location.href = "/frontend/chatbot.html";
+    });
+
+    function loadChatHistory() {
+      chatHistoryEl.innerHTML = "";
+      const entries = getChatHistory();
+      totalRecordsEl.textContent = String(entries.length);
+
+      if (entries.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "history-entry";
+        empty.textContent = "No chat history yet.";
+        chatHistoryEl.appendChild(empty);
+        return;
+      }
+
+      entries.forEach((entry) => {
+        const card = document.createElement("div");
+        card.className = "history-entry";
+
+        const question = document.createElement("div");
+        question.className = "bubble-row";
+        question.innerHTML = `
+          <div class="avatar-dot">Q</div>
+          <div class="chat-bubble user"><span class="bubble-label">Q</span>${entry.question}</div>
+        `;
+
+        const answer = document.createElement("div");
+        answer.className = "bubble-row";
+        answer.innerHTML = `
+          <div class="avatar-dot" style="background:#dbeafe;color:#1d4ed8;">A</div>
+          <div class="chat-bubble bot"><span class="bubble-label">A</span>${entry.answer}</div>
+        `;
+
+        const time = document.createElement("div");
+        time.className = "entry-time";
+        time.textContent = new Date(entry.at).toLocaleString();
+
+        const thread = document.createElement("div");
+        thread.className = "history-thread";
+        thread.appendChild(question);
+        thread.appendChild(answer);
+        thread.appendChild(time);
+
+        card.appendChild(thread);
+        chatHistoryEl.appendChild(card);
+      });
+    }
+
+    async function loadAppointmentHistory() {
+      appointmentHistoryEl.innerHTML = "";
+      try {
+        const res = await authFetch(`${API_BASE}/appointments`);
+        const data = await res.json();
+        const items = data.appointments || [];
+
+        if (items.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "history-entry";
+          empty.textContent = "No appointments yet.";
+          appointmentHistoryEl.appendChild(empty);
+          return;
+        }
+
+        items.forEach((item) => {
+          const card = document.createElement("div");
+          card.className = "appointment-card";
+          card.innerHTML = `
+            <div class="appointment-top">
+              <div class="appointment-name">${item.name}</div>
+              <span class="status-chip" style="background:#eaf7ec;color:#15803d;">Completed</span>
+            </div>
+            <div class="appointment-meta">${item.appointment_date}</div>
+            <div class="appointment-meta">Created: ${item.created_at}</div>
+          `;
+          appointmentHistoryEl.appendChild(card);
+        });
+      } catch (error) {
+        const card = document.createElement("div");
+        card.className = "history-entry";
+        card.textContent = `Could not load appointment history: ${error.message}`;
+        appointmentHistoryEl.appendChild(card);
+      }
+    }
+
+    loadChatHistory();
+    loadAppointmentHistory();
+  </script>
+</body>
+</html>

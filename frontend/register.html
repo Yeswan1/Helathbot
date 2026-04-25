@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create Account | Smart Healthcare Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/frontend/styles.css?v=20260425-auth-1" />
+</head>
+<body>
+  <main class="auth-shell">
+    <section class="auth-hero">
+      <div>
+        <div class="hero-chip">Create Account</div>
+        <h1>Set up your healthcare workspace in seconds.</h1>
+        <p>Create your profile to use the chatbot, manage appointments, and view history from any device.</p>
+      </div>
+
+      <div class="auth-features">
+        <div class="auth-feature"><strong>Personal profile</strong><span>Choose a display name and secure username.</span></div>
+        <div class="auth-feature"><strong>Quick access</strong><span>Start chatting after registration automatically.</span></div>
+        <div class="auth-feature"><strong>Private account</strong><span>Your credentials are stored locally with hashing.</span></div>
+        <div class="auth-feature"><strong>Simple workflow</strong><span>Register once and return to sign in any time.</span></div>
+      </div>
+    </section>
+
+    <section class="auth-panel">
+      <article class="auth-card">
+        <h2>Create Account</h2>
+        <p class="auth-note">Fill in your details below. Your account will be ready to use right away.</p>
+
+        <div class="field-group">
+          <label class="field-label" for="register-display-name">Display name</label>
+          <input id="register-display-name" type="text" placeholder="Enter display name" autocomplete="name" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="register-username">Username</label>
+          <input id="register-username" type="text" placeholder="Choose username" autocomplete="username" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="register-password">Password</label>
+          <input id="register-password" type="password" placeholder="Create password" autocomplete="new-password" />
+        </div>
+
+        <button id="register-btn" class="secondary" style="width: 100%;">Create Account</button>
+
+        <div class="auth-link-row">
+          Already have an account? <a href="/frontend/login.html">Back to login</a>
+        </div>
+
+        <div id="status" class="status"></div>
+      </article>
+    </section>
+  </main>
+
+  <script src="/frontend/common.js"></script>
+  <script>
+    const currentUser = getUserName();
+    const currentToken = getAuthToken();
+    if (currentUser && currentToken) {
+      window.location.href = "/frontend/chatbot.html";
+    }
+
+    const displayNameInput = document.getElementById("register-display-name");
+    const usernameInput = document.getElementById("register-username");
+    const passwordInput = document.getElementById("register-password");
+    const registerBtn = document.getElementById("register-btn");
+    const statusEl = document.getElementById("status");
+
+    async function register() {
+      const displayName = displayNameInput.value.trim();
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
+
+      if (displayName.length < 2 || username.length < 3 || password.length < 6) {
+        statusEl.textContent = "Display name, username, and password must meet minimum length.";
+        statusEl.className = "status error";
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ display_name: displayName, username, password })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(formatApiError(data, "Registration failed"));
+        }
+
+        setUserName(data.display_name || data.username);
+        setAuthToken(data.token);
+        window.location.href = "/frontend/chatbot.html";
+      } catch (error) {
+        statusEl.textContent = error.message;
+        statusEl.className = "status error";
+      }
+    }
+
+    registerBtn.addEventListener("click", register);
+    passwordInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") register();
+    });
+  </script>
+</body>
+</html>

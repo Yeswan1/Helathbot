@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Appointments | Smart Healthcare Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/frontend/styles.css" />
+</head>
+<body>
+  <main class="shell app-layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <div>
+          <h1>Smart Healthcare Assistant</h1>
+          <p id="welcome">Welcome</p>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <a href="/frontend/chatbot.html">Chatbot</a>
+        <a class="active" href="/frontend/appointments.html">Appointments</a>
+        <a href="/frontend/history.html">History</a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="assistance-box">
+          <small>Quick action</small>
+          <div style="font-weight: 900; margin-bottom: 10px;">Back to chat</div>
+          <button id="chat-shortcut" class="primary" style="width: 100%;">Open Chatbot</button>
+        </div>
+        <button id="logout-btn" class="secondary" style="width: 100%; margin-top: 12px;">Logout</button>
+      </div>
+    </aside>
+
+    <section class="content">
+      <div class="topbar">
+        <div>
+          <h2>Appointments</h2>
+          <p>Book and manage mock healthcare visits.</p>
+        </div>
+        <div class="badge">Calendar Sync</div>
+      </div>
+
+      <div class="grid-2">
+        <article class="panel">
+          <h3>Book Appointment</h3>
+          <div class="field-group">
+            <label class="field-label" for="name">Patient name</label>
+            <input id="name" type="text" placeholder="Patient name" />
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="date">Date and time</label>
+            <input id="date" type="datetime-local" />
+          </div>
+          <button id="book-btn" class="secondary" style="width: 100%;">Book Appointment</button>
+          <div id="status" class="status"></div>
+        </article>
+
+        <article class="panel">
+          <div class="auth-actions-row" style="margin-bottom: 14px;">
+            <h3 style="margin: 0;">Upcoming Appointments</h3>
+            <button id="refresh-btn" class="primary">Refresh List</button>
+          </div>
+          <ul id="appointments-list" class="list"></ul>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <script src="/frontend/common.js"></script>
+  <script>
+    requireLogin();
+
+    const userName = getUserName();
+    document.getElementById("welcome").textContent = `Welcome, ${userName}`;
+    document.getElementById("logout-btn").addEventListener("click", logout);
+
+    const nameInput = document.getElementById("name");
+    const dateInput = document.getElementById("date");
+    const statusEl = document.getElementById("status");
+    const listEl = document.getElementById("appointments-list");
+    document.getElementById("chat-shortcut").addEventListener("click", () => {
+      window.location.href = "/frontend/chatbot.html";
+    });
+
+    nameInput.value = userName;
+
+    async function loadAppointments() {
+      listEl.innerHTML = "";
+      try {
+        const res = await authFetch(`${API_BASE}/appointments`);
+        const data = await res.json();
+        const items = data.appointments || [];
+
+        if (items.length === 0) {
+          const li = document.createElement("li");
+          li.textContent = "No appointments yet.";
+          listEl.appendChild(li);
+          return;
+        }
+
+        items.forEach((item) => {
+          const li = document.createElement("li");
+          li.textContent = `${item.name} | ${item.appointment_date}`;
+          listEl.appendChild(li);
+        });
+      } catch (error) {
+        const li = document.createElement("li");
+        li.textContent = `Could not load appointments: ${error.message}`;
+        listEl.appendChild(li);
+      }
+    }
+
+    async function bookAppointment() {
+      const name = nameInput.value.trim();
+      const appointmentDate = dateInput.value;
+
+      if (!name || !appointmentDate) {
+        statusEl.textContent = "Please enter name and date.";
+        statusEl.className = "status error";
+        return;
+      }
+
+      try {
+        const res = await authFetch(`${API_BASE}/appointments`, {
+          method: "POST",
+          body: JSON.stringify({ name, appointment_date: appointmentDate })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || "Booking failed");
+        }
+
+        statusEl.textContent = data.message;
+        statusEl.className = "status ok";
+        dateInput.value = "";
+        loadAppointments();
+      } catch (error) {
+        statusEl.textContent = error.message;
+        statusEl.className = "status error";
+      }
+    }
+
+    document.getElementById("book-btn").addEventListener("click", bookAppointment);
+    document.getElementById("refresh-btn").addEventListener("click", loadAppointments);
+
+    loadAppointments();
+  </script>
+</body>
+</html>

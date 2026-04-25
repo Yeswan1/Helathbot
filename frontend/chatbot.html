@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chatbot | Smart Healthcare Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/frontend/styles.css" />
+</head>
+<body>
+  <main class="shell app-layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <div>
+          <h1>Smart Healthcare Assistant</h1>
+          <p id="welcome">Welcome</p>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <a class="active" href="/frontend/chatbot.html">Chatbot</a>
+        <a href="/frontend/appointments.html">Appointments</a>
+        <a href="/frontend/history.html">History</a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="assistance-box">
+          <small>Need assistance?</small>
+          <div style="font-weight: 900; margin-bottom: 10px;">Book appointment</div>
+          <button id="book-shortcut" class="primary" style="width: 100%;">Open Appointments</button>
+        </div>
+        <button id="logout-btn" class="secondary" style="width: 100%; margin-top: 12px;">Logout</button>
+      </div>
+    </aside>
+
+    <section class="content">
+      <div class="topbar">
+        <div>
+          <h2>Healthcare Chatbot</h2>
+          <p>Ask questions and get document-backed guidance.</p>
+        </div>
+        <div class="badge">System Active</div>
+      </div>
+
+      <div class="panel chat-panel">
+        <h3>Conversation</h3>
+        <div id="chat-box"></div>
+        <div class="compose-row">
+          <input id="question" type="text" placeholder="Ask a healthcare question..." />
+          <button id="ask-btn" class="primary">Ask</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/frontend/common.js"></script>
+  <script>
+    requireLogin();
+
+    const userName = getUserName();
+    document.getElementById("welcome").textContent = `Welcome, ${userName}`;
+    document.getElementById("logout-btn").addEventListener("click", logout);
+
+    const chatBox = document.getElementById("chat-box");
+    const questionInput = document.getElementById("question");
+    const askBtn = document.getElementById("ask-btn");
+    document.getElementById("book-shortcut").addEventListener("click", () => {
+      window.location.href = "/frontend/appointments.html";
+    });
+
+    function addMessage(text, who) {
+      const msg = document.createElement("div");
+      msg.className = `msg ${who}`;
+      msg.textContent = text;
+      chatBox.appendChild(msg);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    async function askQuestion() {
+      const question = questionInput.value.trim();
+      if (!question) {
+        return;
+      }
+
+      addMessage(question, "user");
+      questionInput.value = "";
+
+      try {
+        const res = await authFetch(`${API_BASE}/chat`, {
+          method: "POST",
+          body: JSON.stringify({ question })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || "Request failed");
+        }
+
+        addMessage(data.answer, "bot");
+        pushChatHistory(question, data.answer);
+      } catch (error) {
+        addMessage(`Error: ${error.message}`, "bot");
+      }
+    }
+
+    askBtn.addEventListener("click", askQuestion);
+    questionInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        askQuestion();
+      }
+    });
+
+    addMessage("Hello. Ask me anything from the healthcare knowledge base.", "bot");
+  </script>
+</body>
+</html>

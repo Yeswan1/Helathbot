@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login | Smart Healthcare Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/frontend/styles.css?v=20260425-auth-1" />
+</head>
+<body>
+  <main class="auth-shell">
+    <section class="auth-hero">
+      <div>
+        <div class="hero-chip">Smart Healthcare Assistant</div>
+        <h1>Sign in to your healthcare dashboard.</h1>
+        <p>Get access to chatbot support, appointment booking, and your medical history in one clean workspace.</p>
+      </div>
+
+      <div class="auth-features">
+        <div class="auth-feature"><strong>Secure access</strong><span>Credential-based login and Google sign-in.</span></div>
+        <div class="auth-feature"><strong>Fast support</strong><span>Ask questions and get helpful healthcare guidance.</span></div>
+        <div class="auth-feature"><strong>Appointments</strong><span>Book and manage visits from your dashboard.</span></div>
+        <div class="auth-feature"><strong>History</strong><span>Review prior chats and scheduled appointments.</span></div>
+      </div>
+    </section>
+
+    <section class="auth-panel">
+      <article class="auth-card">
+        <h2>Login</h2>
+        <p class="auth-note">Use your username and password. Google sign-in will appear if your OAuth client is configured.</p>
+
+        <div class="field-group">
+          <label class="field-label" for="login-username">Username</label>
+          <input id="login-username" type="text" placeholder="Enter username" autocomplete="username" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="login-password">Password</label>
+          <input id="login-password" type="password" placeholder="Enter password" autocomplete="current-password" />
+        </div>
+
+        <div class="auth-actions-row">
+          <button id="login-btn" class="primary" style="width: 100%;">Login</button>
+        </div>
+
+        <div class="divider">or continue with Google</div>
+        <div class="auth-social">
+          <div id="google-signin-button" class="google-wrap"></div>
+          <div id="google-help" class="small-muted">If the Google button is missing, the OAuth client ID is not configured or the page origin is not authorized.</div>
+        </div>
+
+        <div class="auth-link-row">
+          New here? <a href="/frontend/register.html">Create account</a>
+        </div>
+
+        <div id="status" class="status"></div>
+      </article>
+    </section>
+  </main>
+
+  <script src="/frontend/common.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script>
+    const currentUser = getUserName();
+    const currentToken = getAuthToken();
+    if (currentUser && currentToken) {
+      window.location.href = "/frontend/chatbot.html";
+    }
+
+    const loginUsernameInput = document.getElementById("login-username");
+    const loginPasswordInput = document.getElementById("login-password");
+    const statusEl = document.getElementById("status");
+    const loginBtn = document.getElementById("login-btn");
+    const googleButtonContainer = document.getElementById("google-signin-button");
+    const googleHelp = document.getElementById("google-help");
+
+    async function handleGoogleCredentialResponse(response) {
+      try {
+        const res = await fetch(`${API_BASE}/auth/google`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ credential: response.credential })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(formatApiError(data, "Google login failed"));
+        }
+
+        setUserName(data.display_name || data.username || "Google User");
+        setAuthToken(data.token);
+        window.location.href = "/frontend/chatbot.html";
+      } catch (error) {
+        statusEl.textContent = error.message;
+        statusEl.className = "status error";
+      }
+    }
+
+    async function initGoogleSignIn() {
+      try {
+        const configRes = await fetch(`${API_BASE}/auth/google-config`);
+        const config = await configRes.json();
+
+        if (!config.enabled || !window.google || !config.client_id) {
+          googleButtonContainer.parentElement.style.display = "none";
+          googleHelp.textContent = "Google sign-in is not configured on this server.";
+          return;
+        }
+
+        window.google.accounts.id.initialize({
+          client_id: config.client_id,
+          callback: handleGoogleCredentialResponse,
+        });
+        window.google.accounts.id.renderButton(googleButtonContainer, {
+          theme: "outline",
+          size: "large",
+          width: 360,
+          text: "signin_with",
+        });
+      } catch (_) {
+        googleButtonContainer.parentElement.style.display = "none";
+        googleHelp.textContent = "Google sign-in is unavailable right now.";
+      }
+    }
+
+    async function login() {
+      const username = loginUsernameInput.value.trim();
+      const password = loginPasswordInput.value;
+
+      if (username.length < 3 || password.length < 6) {
+        statusEl.textContent = "Username must be 3+ characters and password must be 6+ characters.";
+        statusEl.className = "status error";
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(formatApiError(data, "Login failed"));
+        }
+
+        setUserName(data.display_name || data.username);
+        setAuthToken(data.token);
+        window.location.href = "/frontend/chatbot.html";
+      } catch (error) {
+        statusEl.textContent = error.message;
+        statusEl.className = "status error";
+      }
+    }
+
+    loginBtn.addEventListener("click", login);
+    loginPasswordInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") login();
+    });
+
+    if (window.google && window.google.accounts && window.google.accounts.id) {
+      initGoogleSignIn();
+    } else {
+      window.addEventListener("load", initGoogleSignIn, { once: true });
+    }
+  </script>
+</body>
+</html>
